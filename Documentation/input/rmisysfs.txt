@@ -1,0 +1,181 @@
+The RMI4 driver exposes an extensive set of informational and control
+parameters via sysfs.
+
+General parameters for a particular RMI4 device are found in
+/sys/bus/rmi/devices/sensorXX/, where XX is a the device's ID as a two digit
+number (padded with leading zeros).  Function specific parameters associated
+with a particular RMI sensor are found in /sys/bus/rmi/devices/sensorXX/fnYY/,
+where XX is a the device's ID as a two digit number (padded with leading zeros)
+and YY is the hexdecimal function number (for example, fn11 for RMI function
+F11).
+
+Although you could use this sysfs interface to configure an RMI4 device on
+system startup, that is not recommended.  Use the existing platform data and
+board file structures to specify the initial operating parameters, instead.
+
+
+General Parameters
+==================
+
+hasbsr (RO) - Reads back as 1 if the device supports the bus select register
+(see below), 0 otherwise.
+
+bsr (RW) - This contains the current value of the device's Bus Select Register
+(BSR), if it is present.  The Bus Select Register is of interest only when
+reflashing the device.  See the RMI4 Specification for details.
+
+enabled (RW) - Writing 1 to this enables the RMI4 driver, writing 0 to this
+disables it.  When disabled, the RMI4 driver completes any pending activities,
+suspends any current threads, stops polling (if applicable) and releases the
+ATTN IRQ (if applicable).  This can be useful when another driver, such as
+rmidev, wants to interact with the device.  The RMI4 driver is enabled by
+default at start up.
+
+phy (RO) - Presents information about the physical connection of this device.
+It has one line, with the format
+    prot tx_count tx_bytes tx_errors rx_count rx_bytes rx_errors attn
+Where
+    prot is one of i2c, spi1, or spi2
+    tx_count is the number of write operations
+    tx_bytes is the number of bytes written
+    tx_errors is the number of write operations that encountered errors
+    rx_count is the number of read operations
+    rx_bytes is the total number of bytes read
+    rx_errors is the number of read operations that encountered errors
+    attn is the number of times the ATTN line interrupt has been seen
+All counts are 64-bit unsigned values, and are set to zero when the physical
+layer driver is initialized.
+
+version(RO) - Displays RMI4 driver version info.
+
+
+
+F01 Device Control Parameters
+=============================
+
+chargerinput (RW) - User space programs can use this to tell the sensor that
+the system is plugged into an external power source (as opposed to running on
+batteries).  This allows the sensor firmware to make necessary adjustments
+for the current capacitence regime.  Write 1 to this when the system is using
+external power, write 0 to this when the system is running on batteries.
+
+configured (RO) - Shows the current state of the configured bit.  This will be
+1 most of the time (indicating the device has been appropriately configured),
+but will switch to 0 briefly if the sensor experiences a firmware or ASIC
+reset event.
+
+datecode (RO) - the date on which the module was manufactured.
+
+flashprog (RO) - Defines the current device operating mode. The flashprog flag
+is set if the normal operation of the device is suspended because the device is
+in a flash programming enabled state.
+
+manufacturer (RO) - This is the identity of the manufacturer of the device,
+as obtained from F01_RMI_Query0.
+
+nosleep (RW) - Writing 1 to this parameter disables all normal firmware
+powersaving behaviors and forces the device to run at full power without
+sleeping.  The default state for this bit is 0.
+
+productinfo (RO) - the product info bytes, as determined from F01_RMI_Query2
+and F01_RMI_Query3 registers.
+
+productID (RO) - A string of up to 10 characters, identifying the product.
+
+reportrate (RW) - This is the current value of the RMI4 ReportRate bit
+(F01_RMI_Ctrl0, bit 6).  The meaning of this bit is very much device-dependent.
+Please see the RMI4 specification for details.
+
+reset (WO) - Writing a 1 to this write only register forces the device to reset.
+
+sleepmode (RW) - Controls power management on the device.  Writing 0 to this
+parameter puts the device into its normal operating mode.  Writing 1 to this
+parameter fully disables touch sensors and similar inputs - no touch data will
+be reported from the device in this mode.  Writing 2 or 3 to this device may
+or may not have an effect, depending on the particular device - see the product
+specification for your sensor for details.
+
+statuscode (RO) - Reports the most recent device status, such as invalid
+configuration, device reset, CRC failure, and so on.  Please se the RMI4
+specification for details.
+
+unconfigured (RO) - This is the opposite of the configured bit, described above.
+
+
+F11 2D Sensing Parameters
+=========================
+
+swap (RW) - Writing 1 to this parameter swaps the X and Y axis as reported by
+the device, rotating the reported coordinates by 90 degrees.  This can be
+useful when installing a landscape sensor over a portrait display, for example.
+The default state for this parameter is 0.  If enabled, swap is applied before
+any other transformation.
+
+flip (RW) - This parameter is a pair of single binary digits (for example,
+"0 0" or "1 0"), corresponding to the X and Y axis.  Writing a 1 for a
+particular axis will invert the coordinates reported by the device along
+that axis.  For example writing "0 1" to this parameter will flip the Y axis
+top to bottom, but leave the X axis unchanged.  If enabled, flip is applied
+after swap and before offset.
+
+offset (RW) - This is a pair of values that will be SUBTRACTED from the X and
+Y coordinates, respectively.  If non-zero, offset will be applied after flip
+and before clip.  The default value for offset is 0 for both X and Y.
+
+clip (RW) - This is a set of four unsigned values in the range [0..65535],
+representing the lower bounds on X, the upper bounds on X, the lower bounds on
+Y, and the upper bounds on Y.  Coordinates will be clipped to these ranges.  If
+enabled, clip is the final transformation to be applied to the coordinates.
+The default upper and lower bounds for clip are 0 and 65535 respectively for
+both axes.
+
+maxPos (RW) - Contains two values specifying the the maximum reported
+coordinates for X and Y axes, respectively.
+
+relreport (RW) - Writing 1 to this parameter enables relative motion reporting.
+The default state for this parameter is 0.
+
+
+F19 Capacitive Button Parameters
+================================
+
+button_count (RO) - Tells you how many buttons this device supports.  Buttons
+are numbered from 0 through button_count-1.
+
+buttonMap (RW) - This consists of button_count entries, showing which keys each
+button is mapped to.  Writing to this parameter changes the button mappings.
+When writing, you must provide a mapping for each capacitive button.
+
+
+F34 Flash Memory Management Parameters
+======================================
+
+blocksize (RO) - The number of bytes in one data block. When programming the
+firmware, the data should be broken into blocks of this size and each block
+programmed individually.
+
+bootloaderid (RW) - Two ASCII characters identifying the particular bootloader
+version.
+
+cmd (RW) - Write to this parameter to send a flash control operation command.
+See rmi_f34.h for #defines of available commands, and the RMI4 specification
+for details on their meaning.
+
+configblockcount (RO) -  the number of blocks in a configuration image.
+blocksize * configblockcount == total number of bytes in a configuration image.
+
+data (RW) - Write blocks of image or configuration data to this during the
+reflash process.  You can also use this to read the configuration blocks.
+
+imageblockcount (RO) - The number of blocks in a firmware image. blocksize *
+imageblockcount == total number of bytes in a firmware image area.
+
+status (RO) - This parameter, at the completion of a flash operation, indicates
+the success or failure of the
+operation.
+
+
+F54 Diagnostic Reporting Parameters
+===================================
+
+TBD

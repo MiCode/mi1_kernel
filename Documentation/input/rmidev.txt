@@ -1,0 +1,143 @@
+RMI4 devices are typically handled by kernel drivers attached to devices on
+/sys/bus/rmi.  However, user space programs can access the RMI4 devices
+through a /dev interface.
+
+Each registered RMI4 device is assigned a number, starting from 0.  The rmidev
+module (if present and loaded) creates a corresponding /dev/rmiX device.  This
+device is a flat binary character file that allows you to read, write, and seek
+within the register space of the corresponding RMI4 device.
+
+Opening the rmidev file is done just like opening any other file.  For example,
+in C you might do the following to open the device file for the first RMI4
+device:
+    int file;
+
+    file = open("/dev/rmi0", O_RDWR);
+    if (file < 0) {
+        /* ERROR HANDLING; you can check errno to see what went wrong */
+        exit(1);
+    }
+
+Once the file is open, you can use read() and write() to access registers in
+the RMI4 register map.  Use lseek() to specify the address at which the
+read() or write() operation will begin.
+
+
+NOTES ON ADDRESSING
+-------------------
+
+The RMI4 register space is 16 bits wide, supporting 65536 available 8-bit
+registers.  This means the range of valid positions within the file is 0
+through 65535 (0xFFFF).
+
+Attempting to lseek() to an address of 65536 or higher will return EINVAL.
+read() and write() operations that begin at 65536 or higher will return EINVAL.
+The result of read() and write() operations that begine at 65535 or below, and
+then extend beyond that boundary are undefined.
+
+Although the RMI4 register space supports 65536 registers, not all registers
+are defined or mapped on all products.  Undefined or unmapped registers will
+usually return zero, but you should not rely on this behavior.  The register
+map for a given device may contain 'holes' of unimplemented registers.
+
+If you're not sure what the register map for a given RMI4 device looks like,
+you can use the self describing features of RMI4 to determine the register
+map (this is what the RMI4 touchscreen driver does), or consult the product
+spec and documentation for your product.
+
+
+BUFFERED REGISTERS
+------------------
+
+The RMI4 specification also defines certain special registers, sometimes
+referred to as "buffered registers".  Buffered registers allow large amounts
+of data to be read or written at a single address in a single read or write
+operation.  Reads from (or writes to) buffered registers DO NOT increment the
+RMI4 device's internal register pointer.  When reading/writing a buffered
+register, you MUST follow these steps:
+    (1) lseek() to the buffered register's address
+    (2) read/write all data in a single read() or write() call
+    (3) lseek() to the address of the next register you wish to read/write
+
+The result of a read or write that extends across a buffered register is
+undefined.  It probably won't do what you expect.
+
+The result of trying to use multiple read() or write() calls to access the
+data in a buffered register is undefined.  It most certainly won't do what
+you expect.
+
+The result of failing to lseek() after reading or writing a buffered register
+is undefined.  It probably won't do what you expect.
+
+For more information on buffered registers, please refer to the RMI4
+specification.
+
+
+OPERATIONAL NOTE
+----------------
+
+It's important to remember that reading or writing the registers of an RMI4
+device using rmidev can change the state of the device.  For example, reading
+the F01 interrupt status register has the side effect of clearing the contents
+of that register.  If there was a pending interrupt (for example, a finger
+position report), information about that interrupt would be lost to the RMI4
+touchscreen driver.
+
+For this reason, it is required you disable the RMI4 device before accessing
+the sensor via rmidev.  To do this, write 0 to
+/sys/bus/rmi/devices/sensor00/enabled before you open the /dev/rmi0 file.
+After you close that file, you can write 1 to
+/sys/bus/rmi/devices/sensor00/enabled to return the RMI4 device to its enabled
+state.
+
+The results of using rmidev to access an RMI4 sensor via rmidev while the
+touchscreen driver is enabled are not defined, but it probably won't be pretty.
+
+
+HANDLING ATTENTION
+------------------
+
+RMI4 devices use the gpiolib framework to export their ATTN GPIO to userspace
+via sysfs (see Documentation/gpio.txt for more information about gpiolib).
+For a given RMI4 device, the gpiolib interfaces can be found in
+/sys/bus/rmi/devices/sensorNN/attn/ where NN is the number of the RMI4 sensor.
+
+Disabling the RMI4 device will also cause it to release the ATTN IRQ.  This
+will make it possible for a user space program to write to .../attn/edge file
+and then use poll() monitor the .../attn/value for changes in the state of
+the ATTN pin.
+
+Once you are done with ATTN, you MUST write 'none' to the .../attn/edge file
+in order to release the IRQ.  This MUST be done before you re-enable the RMI4
+device, otherwise the touchscreen driver will not be able to re-acquire the
+ATTN IRQ, and your device will be a brick.
+
+
+PUTTING IT ALL TOGETHER
+-----------------------
+
+Suppose you want to build a user space program to use rmidev to access an
+RMI4 device, and use changes in ATTN to determine when to read the F01
+interrupt status register.  Follow the steps below to disable the device
+and obtain access.
+
+    1) write 0 to /sys/bus/rmi/devices/sensor00/enabled
+    2) open /dev/rmi0
+    3) open /sys/bus/rmi/devices/sensor00/attn/value
+    4) write both to /sys/bus/rmi/devices/sensor00/attn/edge
+
+Then enter an operating mode like this.
+    1) poll() the /sys/bus/rmi/devices/sensor00/attn/value
+    2) lseek() to 0 and read() /sys/bus/rmi/devices/sensor00/attn/value
+       whenever gpiolib indicates there is a change in state
+    3) if ATTN is asserted (usually this will be value == 0) read the
+       interrupt status register(s)
+    4) perform appropriate actions
+    5) go back to (1)
+
+When you're all done, perform the following steps IN ORDER:
+
+    1) close /sys/bus/rmi/devices/sensor00/attn/value
+    2) close /dev/rmi0
+    3) write none to /sys/bus/rmi/devices/sensor00/attn/edge
+    4) write 1 to /sys/bus/rmi/devices/sensor00/enabled

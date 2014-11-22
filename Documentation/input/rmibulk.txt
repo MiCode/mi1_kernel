@@ -1,0 +1,97 @@
+RMI4 devices are typically handled by kernel drivers attached to devices on
+/sys/bus/rmi.  However, user space programs can access the RMI4 devices
+through a /dev interface as described in Documentation/input/rmidev.txt.
+
+rmibulk is an additional feature that can be configured to work in
+conjunction with rmidev.  It is intended for use by user-space programs that
+cannot respond to changes in /sys/bus/rmi/devices/sensorNN/attn/value quickly
+enough to provide a good user interface experience.
+
+Each registered RMI4 device is assigned a number, starting from 0.  The rmibulk
+module (if present and loaded) creates a corresponding /dev/rmibulkX device.
+The rmibulk device can be configured to read certain data registers when the
+RMI4 sensor asserts its ATTN interrupt.  The data read from the sensor can be
+obtained by reading from the rmibulk device.
+
+Opening the rmibulk file is done just like opening any other file.  For example,
+in C you might do the following to open the device file for the first RMI4
+device:
+    int file;
+
+    file = open("/dev/rmi0", O_RDWR);
+    if (file < 0) {
+        /* ERROR HANDLING; you can check errno to see what went wrong */
+        exit(1);
+    }
+
+Once the file is open, you can write to the file to configure the behavior
+of rmibulk, and read from the file to obtain the register data.
+
+Messages from the rmibulk driver always take the following form:
+
+byte 0          | msg code           |
+byte 1          | msg size low       |
+byte 2          | msg size high      |
+byte 3          | payload 0          |
+byte 4          | payload 1          |
+                        ...
+byte msg_size-2 | payload n          |
+byte msg_size-1 | checksum           |
+
+CONFIGURING RMIBULK
+-------------------
+
+To configure the behavior of an rmibulk device, you write commands to the
+device.  Each command consists of a 1-byte command header indicating the
+command to be processed, followed by an optional payload of data.  The length
+and contents of the payload is dependent on the command to be executed.
+Available commands and their payload sizes are
+
+command      payload size
+-------      ------------
+ENABLE_READ  5 bytes
+DISABLE_READ 1 byte
+BLOB_MODE    1 byte
+
+
+RECEIVING DATA
+--------------
+
+Whenever rmibulk reads a block of registers, it will write a data block to
+/dev/rmibulkX.  Blocks are formatted according the to following structure:
+
+byte 0  | 0x01 == DATA_BLOCK |
+byte 1  | msg size low       |
+byte 2  | msg size high      |
+byte 3  | RMI addr low       |
+byte 4  | RMI addr high      |
+byte 5  | data 0             |
+byte 6  | data 1             |
+byte n+5| data n             |
+byte n+6| checksum           |
+
+Data blocks are trasmitted as soon as they are read, except in blob mode
+(described below).
+
+
+
+BLOB MODE
+---------
+
+For the convenience of some user space programs, rmibulk implements "blob mode".
+In blob mode, the driver will cache all the data blocks read when servicing
+a single ATTN interrupt, and then transmit them en masse after the ATTN
+interrupt is completely serviced.  Prior to trasmitting the cached blocks,
+a BLOB_HEADER will be transmitted, specifying the total size of all the blocks
+(including checksums) in the blob.  This allows a user space program to prepare
+a single large buffer and access the entire set of data blocks in one read.
+
+byte 0  | 0x01 == DATA_BLOCK |
+byte 1  | msg size low       |
+byte 2  | msg size high      |
+byte 3  | RMI addr low       |
+byte 4  | RMI addr high      |
+byte 5  | data 0             |
+byte 6  | data 1             |
+byte n+5| data n             |
+byte n+6| checksum           |
