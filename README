@@ -280,29 +280,27 @@ COMPILING the kernel:
    old kernel image (say, /vmlinux.old) in case the new one does not
    work.  See the LILO docs for more information. 
 
-   After reinstalling LILO, you should be all set.  Shutdown the system,
-   reboot, and enjoy!
+   After reinstalling LILO, you'll be all set.  Reboot the system and enjoy!
 
-   If you ever need to change the default root device, video mode,
+   If you  would ever need to change the default root device, video mode,
    ramdisk size, etc.  in the kernel image, use the 'rdev' program (or
-   alternatively the LILO boot options when appropriate).  No need to
+   alternatively the LILO boot options when appropriate). You don't need to
    recompile the kernel to change these parameters. 
 
- - Reboot with the new kernel and enjoy. 
+ - Reboot with the new kernel and enjoy! 
 
 IF SOMETHING GOES WRONG:
 
  - If you have problems that seem to be due to kernel bugs, please check
    the file MAINTAINERS to see if there is a particular person associated
-   with the part of the kernel that you are having trouble with. If there
-   isn't anyone listed there, then the second best thing is to mail
+   with the part of the kernel that you are having trouble with. If you couldn't find anyone listed there, then the second best thing is to mail
    them to me (torvalds@linux-foundation.org), and possibly to any other
    relevant mailing-list or to the newsgroup.
 
  - In all bug-reports, *please* tell what kernel you are talking about,
    how to duplicate the problem, and what your setup is (use your common
    sense).  If the problem is new, tell me so, and if the problem is
-   old, please try to tell me when you first noticed it.
+   old, please let me know when did you noticed it first.
 
  - If the bug results in a message like
 
@@ -316,15 +314,15 @@ IF SOMETHING GOES WRONG:
 	xx xx xx xx xx xx xx xx xx xx
 
    or similar kernel debugging information on your screen or in your
-   system log, please duplicate it *exactly*.  The dump may look
+   system log, please duplicate it just *exactly*.  The dump may look
    incomprehensible to you, but it does contain information that may
-   help debugging the problem.  The text above the dump is also
+   help debugging the problem.  The text above, the dump is also
    important: it tells something about why the kernel dumped code (in
    the above example it's due to a bad kernel pointer). More information
    on making sense of the dump is in Documentation/oops-tracing.txt
 
  - If you compiled the kernel with CONFIG_KALLSYMS you can send the dump
-   as is, otherwise you will have to use the "ksymoops" program to make
+   as  it is, otherwise you will have to use the "ksymoops" program to make
    sense of the dump (but compiling with CONFIG_KALLSYMS is usually preferred).
    This utility can be downloaded from
    ftp://ftp.<country>.kernel.org/pub/linux/utils/kernel/ksymoops/ .
@@ -364,7 +362,7 @@ IF SOMETHING GOES WRONG:
  - Alternately, you can use gdb on a running kernel. (read-only; i.e. you
    cannot change values or set break points.) To do this, first compile the
    kernel with -g; edit arch/i386/Makefile appropriately, then do a "make
-   clean". You'll also need to enable CONFIG_PROC_FS (via "make config").
+   clean". You also need to enable CONFIG_PROC_FS (via "make config").
 
    After you've rebooted with the new kernel, do "gdb vmlinux /proc/kcore".
    You can now use all the usual gdb commands. The command to look up the
